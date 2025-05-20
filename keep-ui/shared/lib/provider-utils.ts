@@ -5,7 +5,7 @@ import { Provider } from "@/shared/api/providers";
  * 
  * A provider is considered installed if:
  * 1. It has the 'installed' flag set to true, OR
- * 2. There is at least one configured provider of the same type with a non-empty config
+ * 2. There are NO other providers of the same type with a non-empty config
  * 
  * @param provider The provider to check
  * @param providers Array of all available providers
@@ -17,7 +17,7 @@ export function isProviderInstalled(
 ) {
   return (
     provider.installed ||
-    Object.values(providers || {}).some(
+    !Object.values(providers || {}).some(
       (p) =>
         p.type === provider.type && p.config && Object.keys(p.config).length > 0
     )

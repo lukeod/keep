@@ -13,17 +13,17 @@ describe('provider-utils', () => {
       expect(isProviderInstalled(provider, providers)).toBe(true);
     });
 
-    it('should return false if the provider is not installed and no providers of the same type exist', () => {
+    it('should return true if the provider is not installed and no providers of the same type exist', () => {
       const provider = {
         type: 'slack',
         installed: false
       };
       const providers: Provider[] = [];
       
-      expect(isProviderInstalled(provider, providers)).toBe(false);
+      expect(isProviderInstalled(provider, providers)).toBe(true);
     });
 
-    it('should return true if the provider is not installed but is configured in the providers array', () => {
+    it('should return false if the provider is not installed and another provider of the same type is configured', () => {
       const provider = {
         type: 'slack',
         installed: false
@@ -36,10 +36,26 @@ describe('provider-utils', () => {
         } as Provider
       ];
       
+      expect(isProviderInstalled(provider, providers)).toBe(false);
+    });
+
+    it('should return true if a provider of the same type exists but has no config', () => {
+      const provider = {
+        type: 'slack',
+        installed: false
+      };
+      const providers: Provider[] = [
+        {
+          id: '1',
+          type: 'slack',
+          config: {}
+        } as Provider
+      ];
+      
       expect(isProviderInstalled(provider, providers)).toBe(true);
     });
 
-    it('should return false if a provider of the same type exists but has no config', () => {
+    it('should return true if a provider of the same type exists but config is empty', () => {
       const provider = {
         type: 'slack',
         installed: false
@@ -52,10 +68,10 @@ describe('provider-utils', () => {
         } as Provider
       ];
       
-      expect(isProviderInstalled(provider, providers)).toBe(false);
+      expect(isProviderInstalled(provider, providers)).toBe(true);
     });
 
-    it('should return false if a provider of the same type exists but config is empty', () => {
+    it('should handle multiple providers with different types correctly', () => {
       const provider = {
         type: 'slack',
         installed: false
@@ -63,15 +79,15 @@ describe('provider-utils', () => {
       const providers: Provider[] = [
         {
           id: '1',
-          type: 'slack',
-          config: {}
+          type: 'discord',
+          config: { token: 'some-token' }
         } as Provider
       ];
       
-      expect(isProviderInstalled(provider, providers)).toBe(false);
+      expect(isProviderInstalled(provider, providers)).toBe(true);
     });
 
-    it('should handle multiple providers of the same type', () => {
+    it('should return false if multiple providers exist with one matching the type with non-empty config', () => {
       const provider = {
         type: 'slack',
         installed: false
@@ -89,7 +105,7 @@ describe('provider-utils', () => {
         } as Provider
       ];
       
-      expect(isProviderInstalled(provider, providers)).toBe(true);
+      expect(isProviderInstalled(provider, providers)).toBe(false);
     });
 
     it('should handle case when providers is undefined', () => {
@@ -99,7 +115,7 @@ describe('provider-utils', () => {
       };
       
       // @ts-ignore - Intentionally passing undefined to test handling
-      expect(isProviderInstalled(provider, undefined)).toBe(false);
+      expect(isProviderInstalled(provider, undefined)).toBe(true);
     });
 
     it('should handle case when providers is null', () => {
@@ -109,7 +125,7 @@ describe('provider-utils', () => {
       };
       
       // @ts-ignore - Intentionally passing null to test handling
-      expect(isProviderInstalled(provider, null)).toBe(false);
+      expect(isProviderInstalled(provider, null)).toBe(true);
     });
 
     it('should handle case when provider has no type', () => {
