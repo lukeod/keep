@@ -90,23 +90,29 @@ const WidgetAlertsTable: React.FC<WidgetAlertsTableProps> = ({
         ),
       },
       name: {
-        columnTemplate: "1fr",
+        gridColumnTemplate: "minmax(150px, 2fr)",
         renderValue: (alert: any) => (
-          <div title={alert.name} className="max-w-full truncate">
+          <div 
+            title={alert.name} 
+            className="overflow-hidden text-ellipsis whitespace-nowrap"
+          >
             {alert.name}
           </div>
         ),
       },
       description: {
-        gridColumnTemplate: "1fr",
+        gridColumnTemplate: "minmax(200px, 3fr)",
         renderValue: (alert: any) => (
-          <div title={alert.description} className="max-w-full truncate">
+          <div 
+            title={alert.description} 
+            className="overflow-hidden text-ellipsis whitespace-nowrap"
+          >
             {alert.description}
           </div>
         ),
       },
       lastReceived: {
-        gridColumnTemplate: "min-content",
+        gridColumnTemplate: "minmax(100px, max-content)",
         renderValue: (alert: any) => <TimeAgo date={alert.lastReceived} />,
       },
     }),
@@ -165,7 +171,9 @@ const WidgetAlertsTable: React.FC<WidgetAlertsTableProps> = ({
             columnValue = columnMeta.renderValue(alert);
           } else {
             columnValue = (
-              <div className="max-w-32 truncate">{getNestedValue(alert, column)}</div>
+              <div className="overflow-hidden text-ellipsis">
+                {getNestedValue(alert, column)}
+              </div>
             );
           }
           const _columnsGapClass =
@@ -206,14 +214,18 @@ const WidgetAlertsTable: React.FC<WidgetAlertsTableProps> = ({
 
   return (
     <div
-      style={{
-        background,
-        gridTemplateColumns: gridTemplateColumns,
-      }}
-      className="bg-opacity-25 grid max-w-full overflow-y-auto overflow-x-hidden border rounded-md px-2"
+      className="max-w-full overflow-x-auto border rounded-md"
+      style={{ background }}
     >
-      {renderHeaders()}
-      {renderTableBody()}
+      <div
+        style={{
+          gridTemplateColumns: gridTemplateColumns,
+        }}
+        className="bg-opacity-25 grid overflow-y-auto px-2 min-w-fit"
+      >
+        {renderHeaders()}
+        {renderTableBody()}
+      </div>
     </div>
   );
 };
