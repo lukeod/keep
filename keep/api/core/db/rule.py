@@ -14,9 +14,11 @@ from keep.api.core.db._common import (
     NULL_FOR_DELETED_AT,
     existed_or_new_session,
 )
-from keep.api.models.db.alert import LastAlertToIncident
+from keep.api.models.db.alert import AlertDeduplicationEvent, AlertDeduplicationRule, LastAlertToIncident
 from keep.api.models.db.incident import Incident
+from keep.api.models.db.mapping import MappingRule
 from keep.api.models.db.rule import *
+from keep.api.models.db.extraction import ExtractionRule
 
 
 def create_deduplication_event(
