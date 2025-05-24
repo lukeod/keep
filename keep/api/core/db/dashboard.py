@@ -2,7 +2,7 @@
 
 import json
 
-from datetime import datetime
+from datetime import datetime as dt, timezone
 from typing import Any, Dict, List
 
 from sqlalchemy import select
@@ -80,7 +80,7 @@ def update_dashboard(
         if dashboard_config:
             dashboard.dashboard_config = dashboard_config
         dashboard.updated_by = updated_by
-        dashboard.updated_at = datetime.utcnow()
+        dashboard.updated_at = dt.now(tz=timezone.utc)
         session.commit()
         session.refresh(dashboard)
         return dashboard

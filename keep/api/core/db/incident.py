@@ -2,7 +2,7 @@
 
 import json
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime as dt, timedelta, timezone
 from typing import List, Tuple, Optional
 from uuid import UUID
 from enum import Enum
@@ -86,7 +86,7 @@ def calc_incidents_mttr(tenant_id: str, timestamp_filter: TimeStampFilter = None
         - Supports MySQL, PostgreSQL, and SQLite for timestamp formatting.
     """
     with Session(engine) as session:
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = dt.now(tz=timezone.utc) - timedelta(hours=24)
         time_format = "%Y-%m-%d %H"
         filters = [
             Incident.tenant_id == tenant_id,
@@ -158,7 +158,7 @@ def change_incident_status_by_id(
     tenant_id: str,
     incident_id: UUID | str,
     status: IncidentStatus,
-    end_time: datetime | None = None,
+    end_time: dt | None = None,
 ) -> bool:
     if isinstance(incident_id, str):
         incident_id = __convert_to_uuid(incident_id)
@@ -478,7 +478,7 @@ def get_incident_for_grouping_rule(
             enrich_incidents_with_alerts(tenant_id, [incident], session)
             is_incident_expired = max(
                 alert.timestamp for alert in incident.alerts
-            ) < datetime.utcnow() - timedelta(seconds=rule.timeframe)
+            ) < dt.now(tz=timezone.utc) - timedelta(seconds=rule.timeframe)
         # if there is no incident with the rule_fingerprint, create it or existed is already expired
         if not incident:
             return None, None
@@ -533,7 +533,7 @@ def get_incidents_created_distribution(
         - Supports MySQL, PostgreSQL, and SQLite for timestamp formatting.
     """
     with Session(engine) as session:
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = dt.now(tz=timezone.utc) - timedelta(hours=24)
         time_format = "%Y-%m-%d %H"
         filters = [Incident.tenant_id == tenant_id]
         if timestamp_filter:
@@ -690,8 +690,8 @@ def get_last_incidents(
     limit: int = 25,
     offset: int = 0,
     timeframe: int = None,
-    upper_timestamp: datetime = None,
-    lower_timestamp: datetime = None,
+    upper_timestamp: dt = None,
+    lower_timestamp: dt = None,
     is_candidate: bool = False,
     sorting: Optional[IncidentSorting] = IncidentSorting.creation_time,
     with_alerts: bool = False,
@@ -731,7 +731,7 @@ def get_last_incidents(
         if timeframe:
             query = query.filter(
                 Incident.start_time
-                >= datetime.now(tz=timezone.utc) - timedelta(days=timeframe)
+                >= dt.now(tz=timezone.utc) - timedelta(days=timeframe)
             )
         if upper_timestamp and lower_timestamp:
             query = query.filter(
@@ -798,7 +798,7 @@ def merge_incidents_to_id(
                 alert.fingerprint for alert in source_incident.alerts
             ]
             source_incident.merged_into_incident_id = destination_incident.id
-            source_incident.merged_at = datetime.now(tz=timezone.utc)
+            source_incident.merged_at = dt.now(tz=timezone.utc)
             source_incident.status = IncidentStatus.MERGED.value
             source_incident.merged_by = merged_by
             try:

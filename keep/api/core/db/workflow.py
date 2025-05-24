@@ -2,7 +2,7 @@
 
 import json
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime as dt, timedelta, timezone
 from typing import List, Union, Optional
 from uuid import uuid4
 import random
@@ -83,7 +83,7 @@ def add_or_update_workflow(
                 session=session,
             )
         else:
-            now = datetime.now(tz=timezone.utc)
+            now = dt.now(tz=timezone.utc)
             # Create a new workflow
             workflow = Workflow(
                 id=id,
@@ -141,7 +141,7 @@ def create_workflow_execution(
                 workflow_id=workflow_id,
                 workflow_revision=workflow_revision,
                 tenant_id=tenant_id,
-                started=datetime.now(tz=timezone.utc),
+                started=dt.now(tz=timezone.utc),
                 triggered_by=triggered_by,
                 execution_number=execution_number,
                 status="in_progress",
@@ -226,7 +226,7 @@ def finish_workflow_execution(tenant_id, workflow_id, execution_id, status, erro
         #   and then we can remove the [:511] from here
         workflow_execution.error = error[:511] if error else None
         execution_time = (
-            datetime.utcnow() - workflow_execution.started
+            dt.now(tz=timezone.utc) - workflow_execution.started
         ).total_seconds()
         workflow_execution.execution_time = int(execution_time)
         # TODO: logs
@@ -287,8 +287,8 @@ def get_combined_workflow_execution_distribution(
     Args:
         tenant_id (str): ID of the tenant whose workflow executions are being analyzed.
         timestamp_filter (TimeStampFilter, optional): Filter to specify the time range.
-            - lower_timestamp (datetime): Start of the time range.
-            - upper_timestamp (datetime): End of the time range.
+            - lower_timestamp (dt): Start of the time range.
+            - upper_timestamp (dt): End of the time range.
     Returns:
         List[dict]: A list of dictionaries representing the hourly distribution of workflow executions.
             Each dictionary contains:
@@ -299,7 +299,7 @@ def get_combined_workflow_execution_distribution(
         - Supports MySQL, PostgreSQL, and SQLite for timestamp formatting.
     """
     with Session(engine) as session:
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = dt.now(tz=timezone.utc) - timedelta(hours=24)
         time_format = "%Y-%m-%d %H"
         filters = [WorkflowExecution.tenant_id == tenant_id]
         if timestamp_filter:
@@ -375,7 +375,7 @@ def get_last_workflow_execution_by_workflow_id(
             select(WorkflowExecution)
             .where(WorkflowExecution.workflow_id == workflow_id)
             .where(WorkflowExecution.tenant_id == tenant_id)
-            .where(WorkflowExecution.started >= datetime.now() - timedelta(days=1))
+            .where(WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=1))
             .order_by(col(WorkflowExecution.started).desc())
         )
         if status:
@@ -434,7 +434,7 @@ def get_previous_execution_id(tenant_id, workflow_id, workflow_execution_id):
             .where(WorkflowExecution.id != workflow_execution_id)
             .where(WorkflowExecution.is_test_run == False)
             .where(
-                WorkflowExecution.started >= datetime.now() - timedelta(days=1)
+                WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=1)
             )  # no need to check more than 1 day ago
             .order_by(WorkflowExecution.started.desc())
             .limit(1)
@@ -454,7 +454,7 @@ def get_timeouted_workflow_exections():
                 select(WorkflowExecution)
                 .filter(WorkflowExecution.status == "in_progress")
                 .filter(
-                    WorkflowExecution.started <= datetime.utcnow() - WORKFLOWS_TIMEOUT
+                    WorkflowExecution.started <= dt.now(tz=timezone.utc) - WORKFLOWS_TIMEOUT
                 )
             )
             timeouted_workflows = result.all()
@@ -527,7 +527,7 @@ def get_workflow_executions(
             WorkflowExecution.workflow_id == workflow_id,
             WorkflowExecution.is_test_run == False,
         )
-        now = datetime.now(tz=timezone.utc)
+        now = dt.now(tz=timezone.utc)
         timeframe = None
         if tab == 1:
             timeframe = now - timedelta(days=30)
@@ -651,7 +651,7 @@ def get_workflows_that_should_run():
         workflows_to_run = []
         # for each workflow:
         for workflow in workflows_with_interval:
-            current_time = datetime.utcnow()
+            current_time = dt.now(tz=timezone.utc)
             last_execution = get_last_completed_execution(session, workflow.id)
             # if there no last execution, that's the first time we run the workflow
             if not last_execution:
@@ -769,7 +769,7 @@ def get_workflows_with_last_execution(tenant_id: str) -> List[dict]:
             .where(WorkflowExecution.tenant_id == tenant_id)
             .where(
                 WorkflowExecution.started
-                >= datetime.now(tz=timezone.utc) - timedelta(days=7)
+                >= dt.now(tz=timezone.utc) - timedelta(days=7)
             )
             .group_by(WorkflowExecution.workflow_id)
             .limit(1000)
@@ -913,7 +913,7 @@ def update_workflow_with_values(
             # TODO: check if valid
             is_valid=True,
             is_current=True,
-            updated_at=datetime.now(),
+            updated_at=dt.now(tz=timezone.utc),
         )
         session.add(version)
         existing_workflow.name = name
@@ -922,7 +922,7 @@ def update_workflow_with_values(
         existing_workflow.interval = interval
         existing_workflow.workflow_raw = workflow_raw
         existing_workflow.revision = next_revision
-        existing_workflow.last_updated = datetime.now()
+        existing_workflow.last_updated = dt.now(tz=timezone.utc)
         existing_workflow.is_deleted = False
         existing_workflow.is_disabled = is_disabled
         existing_workflow.provisioned = provisioned
@@ -947,7 +947,7 @@ def push_logs_to_db(log_entries):
                     # before formatting, fallback
                     message = log_entry["msg"][0:255]
                 try:
-                    timestamp = datetime.strptime(
+                    timestamp = dt.strptime(
                         log_entry["asctime"], "%Y-%m-%d %H:%M:%S,%f"
                     )
                 except Exception:

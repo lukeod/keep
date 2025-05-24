@@ -3,7 +3,7 @@
 import json
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime as dt, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 import uuid
@@ -351,8 +351,8 @@ def count_alerts(
     provider_type: str,
     provider_id: str,
     ever: bool,
-    start_time: Optional[datetime],
-    end_time: Optional[datetime],
+    start_time: Optional[dt],
+    end_time: Optional[dt],
     tenant_id: str,
 ):
     with Session(engine) as session:
@@ -405,7 +405,7 @@ def dismiss_error_alerts(tenant_id: str, alert_id=None, dismissed_by=None) -> No
             .values(
                 dismissed=True,
                 dismissed_by=dismissed_by,
-                dismissed_at=datetime.now(tz=timezone.utc),
+                dismissed_at=dt.now(tz=timezone.utc),
             )
         )
         if alert_id:
@@ -670,8 +670,8 @@ def get_alerts_fields(tenant_id: str) -> List[AlertField]:
 
 def get_alerts_metrics_by_provider(
     tenant_id: str,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    start_date: Optional[dt] = None,
+    end_date: Optional[dt] = None,
     fields: Optional[List[str]] = [],
 ) -> Dict[str, Dict[str, Any]]:
     dynamic_field_sums = [
@@ -750,7 +750,7 @@ def get_alerts_with_filters(
         # Filter by time_delta
         query = query.filter(
             Alert.timestamp
-            >= datetime.now(tz=timezone.utc) - timedelta(days=time_delta)
+            >= dt.now(tz=timezone.utc) - timedelta(days=time_delta)
         )
         # Ensure Alert and AlertEnrichment are joined for subsequent filters
         query = query.outerjoin(Alert.alert_enrichment)
@@ -839,7 +839,7 @@ def get_error_alerts(tenant_id: str, limit: int = 100) -> List[AlertRaw]:
 
 def get_first_alert_datetime(
     tenant_id: str,
-) -> datetime | None:
+) -> dt | None:
     with Session(engine) as session:
         first_alert = (
             session.query(Alert)
@@ -996,7 +996,7 @@ def get_last_alerts(
         if timeframe:
             stmt = stmt.where(
                 LastAlert.timestamp
-                >= datetime.now(tz=timezone.utc) - timedelta(days=timeframe)
+                >= dt.now(tz=timezone.utc) - timedelta(days=timeframe)
             )
         # Apply additional filters
         filter_conditions = []
@@ -1165,7 +1165,7 @@ def get_last_workflow_workflow_to_alert_executions(
             WorkflowToAlertExecution.workflow_execution_id == WorkflowExecution.id,
         )
         .filter(WorkflowExecution.tenant_id == tenant_id)
-        .filter(WorkflowExecution.started >= datetime.now() - timedelta(days=7))
+        .filter(WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=7))
         .group_by(WorkflowToAlertExecution.alert_fingerprint)
     ).subquery("max_started_subquery")
     # Query to find WorkflowToAlertExecution entries that match the max started timestamp
@@ -1469,7 +1469,7 @@ def query_alerts(
         if timeframe:
             query = query.filter(
                 Alert.timestamp
-                >= datetime.now(tz=timezone.utc) - timedelta(days=timeframe)
+                >= dt.now(tz=timezone.utc) - timedelta(days=timeframe)
             )
         filter_conditions = []
         if upper_timestamp is not None:
@@ -1519,7 +1519,7 @@ def remove_alerts_to_incident_by_incident_id(
             )
             .update(
                 {
-                    "deleted_at": datetime.now(datetime.now().astimezone().tzinfo),
+                    "deleted_at": dt.now(tz=timezone.utc),
                 }
             )
         )

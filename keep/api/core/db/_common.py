@@ -2,7 +2,7 @@
 
 import logging
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime as dt, timedelta, timezone
 from functools import wraps
 from typing import Iterator, List, Type, Optional
 from uuid import UUID
@@ -124,7 +124,7 @@ def filter_query(session: Session, query, field, value):
 
 
 def get_activity_report(session: Optional[Session] = None):
-    last_24_hours = datetime.utcnow() - timedelta(hours=24)
+    last_24_hours = dt.now(tz=timezone.utc) - timedelta(hours=24)
     activity_report = {}
     with Session(engine) as session:
         activity_report["tenants_count"] = session.query(Tenant).count()

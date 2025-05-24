@@ -1,7 +1,7 @@
 """Database operations for tenant."""
 
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime as dt, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -144,7 +144,7 @@ def update_key_last_used(
                 extra={"tenant_id": tenant_id, "unique_api_key_id": reference_id},
             )
             return
-        tenant_api_key_entry.last_used = datetime.utcnow()
+        tenant_api_key_entry.last_used = dt.now(tz=timezone.utc)
         for attempt in range(max_retries):
             try:
                 session.add(tenant_api_key_entry)

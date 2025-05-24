@@ -1,6 +1,6 @@
 """Database operations for rule."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime as dt, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -52,8 +52,8 @@ def create_deduplication_event(
             deduplication_type=deduplication_type,
             provider_id=provider_id,
             provider_type=provider_type,
-            timestamp=datetime.now(tz=timezone.utc),
-            date_hour=datetime.now(tz=timezone.utc).replace(
+            timestamp=dt.now(tz=timezone.utc),
+            date_hour=dt.now(tz=timezone.utc).replace(
                 minute=0, second=0, microsecond=0
             ),
         )
@@ -133,7 +133,7 @@ def create_rule(
             definition=definition,
             definition_cel=definition_cel,
             created_by=created_by,
-            creation_time=datetime.utcnow(),
+            creation_time=dt.now(tz=timezone.utc),
             grouping_criteria=grouping_criteria,
             group_description=group_description,
             require_approve=require_approve,
@@ -214,7 +214,7 @@ def get_all_deduplication_stats(tenant_id):
         )
         all_time_results = session.exec(all_time_query).all()
         # Query to get alerts distribution in the last 24 hours
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = dt.now(tz=timezone.utc) - timedelta(hours=24)
         alerts_last_24_hours_query = (
             select(
                 AlertDeduplicationEvent.deduplication_rule_id,
@@ -235,7 +235,7 @@ def get_all_deduplication_stats(tenant_id):
         alerts_last_24_hours_results = session.exec(alerts_last_24_hours_query).all()
         # Create a dictionary with deduplication stats for each rule
         stats = {}
-        current_hour = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+        current_hour = dt.now(tz=timezone.utc).replace(minute=0, second=0, microsecond=0)
         for result in all_time_results:
             provider_id = result.provider_id
             provider_type = result.provider_type
@@ -338,7 +338,7 @@ def get_rule_distribution(tenant_id, minute=False):
     """Returns hits per hour for each rule, optionally breaking down by groups if the rule has 'group by', limited to the last 7 days."""
     with Session(engine) as session:
         # Get the timestamp for 7 days ago
-        seven_days_ago = datetime.utcnow() - timedelta(days=1)
+        seven_days_ago = dt.now(tz=timezone.utc) - timedelta(days=1)
         # Check the dialect
         if session.bind.dialect.name == "mysql":
             time_format = "%Y-%m-%d %H:%i" if minute else "%Y-%m-%d %H"
@@ -483,7 +483,7 @@ def update_rule(
             rule.grouping_criteria = grouping_criteria
             rule.require_approve = require_approve
             rule.updated_by = updated_by
-            rule.update_time = datetime.utcnow()
+            rule.update_time = dt.now(tz=timezone.utc)
             rule.resolve_on = resolve_on
             rule.create_on = create_on
             rule.incident_name_template = incident_name_template

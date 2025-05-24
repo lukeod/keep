@@ -1,6 +1,6 @@
 """Database operations for provider."""
 
-from datetime import datetime as datetime_class, timedelta, timezone
+from datetime import datetime as dt, timedelta, timezone
 
 from typing import Any, List, Tuple, Optional, Union, Dict
 
@@ -42,7 +42,7 @@ def get_installed_providers(tenant_id: str) -> List[Provider]:
     return providers
 
 
-def get_linked_providers(tenant_id: str) -> List[Tuple[str, str, "datetime"]]:
+def get_linked_providers(tenant_id: str) -> List[Tuple[str, str, dt]]:
     # Alert table may be too huge, so cutting the query without mercy
     LIMIT_BY_ALERTS = 10000
     with Session(engine) as session:
@@ -94,7 +94,7 @@ def get_provider_distribution(
     timestamp_filter: TimeStampFilter = None,
 ) -> (
     list[dict[str, int | Any]]
-    | Dict[str, Dict[str, Union[datetime_class, List[Dict[str, int]], Any]]]
+    | Dict[str, Dict[str, Union[dt, List[Dict[str, int]], Any]]]
 ):
     """
     Calculate the distribution of incidents created over time for a specific tenant.
@@ -113,7 +113,7 @@ def get_provider_distribution(
         - Supports MySQL, PostgreSQL, and SQLite for timestamp formatting.
     """
     with Session(engine) as session:
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = dt.now(tz=timezone.utc) - timedelta(hours=24)
         time_format = "%Y-%m-%d %H"
         filters = [Alert.tenant_id == tenant_id]
         if timestamp_filter:
@@ -177,7 +177,7 @@ def get_provider_distribution(
             for provider_id, provider_type, time, hits, last_alert_timestamp in results:
                 provider_key = f"{provider_id}_{provider_type}"
                 last_alert_timestamp = (
-                    datetime.fromisoformat(last_alert_timestamp)
+                    dt.fromisoformat(last_alert_timestamp)
                     if isinstance(last_alert_timestamp, str)
                     else last_alert_timestamp
                 )
@@ -195,7 +195,7 @@ def get_provider_distribution(
                         provider_distribution[provider_key]["last_alert_received"],
                         last_alert_timestamp,
                     )
-                time = datetime.strptime(time, time_format)
+                time = dt.strptime(time, time_format)
                 index = int((time - twenty_four_hours_ago).total_seconds() // 3600)
                 if 0 <= index < 24:
                     provider_distribution[provider_key]["alert_last_24_hours"][index][
@@ -254,7 +254,7 @@ def update_provider_last_pull_time(tenant_id: str, provider_id: str):
                 extra=extra,
             )
         try:
-            provider.last_pull_time = datetime.now(tz=timezone.utc)
+            provider.last_pull_time = dt.now(tz=timezone.utc)
             session.commit()
         except Exception:
             logger.exception("Failed to update provider last pull time", extra=extra)

@@ -1,7 +1,7 @@
 """Database operations for user."""
 
 import hashlib
-from datetime import datetime
+from datetime import datetime as dt, timezone
 
 from sqlalchemy import select
 from sqlmodel import Session, select
@@ -58,7 +58,7 @@ def get_user(username, password, update_sign_in=True):
             .where(User.password_hash == password_hash)
         ).first()
         if user and update_sign_in:
-            user.last_sign_in = datetime.utcnow()
+            user.last_sign_in = dt.now(tz=timezone.utc)
             session.add(user)
             session.commit()
     return user
@@ -84,7 +84,7 @@ def update_user_last_sign_in(tenant_id, username):
             .where(User.username == username)
         ).first()
         if user:
-            user.last_sign_in = datetime.utcnow()
+            user.last_sign_in = dt.now(tz=timezone.utc)
             session.add(user)
             session.commit()
     return user
