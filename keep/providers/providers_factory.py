@@ -476,59 +476,66 @@ class ProvidersFactory:
         include_details: bool = True,
         override_readonly: bool = False,
     ) -> list[Provider]:
-        if all_providers is None:
-            all_providers = ProvidersFactory.get_all_providers()
+        logger.info(f"[DEBUG] ProvidersFactory.get_installed_providers called for tenant: {tenant_id}")
+        try:
+            if all_providers is None:
+                all_providers = ProvidersFactory.get_all_providers()
 
-        installed_providers = get_installed_providers(tenant_id)
-        providers = []
-        context_manager = ContextManager(tenant_id=tenant_id)
-        secret_manager = SecretManagerFactory.get_secret_manager(context_manager)
-        for p in installed_providers:
-            provider: Provider | None = next(
-                filter(
-                    lambda provider: provider.type == p.type,
-                    all_providers,
-                ),
-                None,
-            )
-            if provider is None:
-                logger.warning(f"Installed provider {p.type} does not exist anymore?")
-                continue
-            provider_copy = provider.copy()
-            provider_copy.id = p.id
-            provider_copy.installed_by = p.installed_by
-            provider_copy.installation_time = p.installation_time
-            provider_copy.last_pull_time = p.last_pull_time
-            provider_copy.provisioned = p.provisioned
-            provider_copy.pulling_enabled = p.pulling_enabled
-            provider_copy.installed = True
-            provider_copy.provider_metadata = p.provider_metadata
-            try:
-                provider_auth = {"name": p.name}
-                if include_details:
-                    provider_auth.update(
-                        secret_manager.read_secret(
-                            secret_name=p.configuration_key, is_json=True
-                        )
-                    )
-                if READ_ONLY_MODE and not override_readonly:
-                    if "authentication" in provider_auth:
-                        provider_auth["authentication"] = {
-                            key: "demo"
-                            for key in provider_auth["authentication"]
-                            if isinstance(provider_auth["authentication"][key], str)
-                        }
-            # Somehow the provider is installed but the secret is missing, probably bug in deletion
-            # TODO: solve its root cause
-            except Exception as e:
-                logger.warning(
-                    f"Could not get provider {provider_copy.id} auth config from secret manager: {e}"
+            installed_providers = get_installed_providers(tenant_id)
+            logger.info(f"[DEBUG] Got {len(installed_providers)} installed providers from DB")
+            providers = []
+            context_manager = ContextManager(tenant_id=tenant_id)
+            secret_manager = SecretManagerFactory.get_secret_manager(context_manager)
+            for p in installed_providers:
+                provider: Provider | None = next(
+                    filter(
+                        lambda provider: provider.type == p.type,
+                        all_providers,
+                    ),
+                    None,
                 )
-                continue
-            provider_copy.details = provider_auth
-            provider_copy.validatedScopes = p.validatedScopes
-            providers.append(provider_copy)
-        return providers
+                if provider is None:
+                    logger.warning(f"Installed provider {p.type} does not exist anymore?")
+                    continue
+                provider_copy = provider.copy()
+                provider_copy.id = p.id
+                provider_copy.installed_by = p.installed_by
+                provider_copy.installation_time = p.installation_time
+                provider_copy.last_pull_time = p.last_pull_time
+                provider_copy.provisioned = p.provisioned
+                provider_copy.pulling_enabled = p.pulling_enabled
+                provider_copy.installed = True
+                provider_copy.provider_metadata = p.provider_metadata
+                try:
+                    provider_auth = {"name": p.name}
+                    if include_details:
+                        provider_auth.update(
+                            secret_manager.read_secret(
+                                secret_name=p.configuration_key, is_json=True
+                            )
+                        )
+                    if READ_ONLY_MODE and not override_readonly:
+                        if "authentication" in provider_auth:
+                            provider_auth["authentication"] = {
+                                key: "demo"
+                                for key in provider_auth["authentication"]
+                                if isinstance(provider_auth["authentication"][key], str)
+                            }
+                # Somehow the provider is installed but the secret is missing, probably bug in deletion
+                # TODO: solve its root cause
+                except Exception as e:
+                    logger.warning(
+                        f"Could not get provider {provider_copy.id} auth config from secret manager: {e}"
+                    )
+                    continue
+                provider_copy.details = provider_auth
+                provider_copy.validatedScopes = p.validatedScopes
+                providers.append(provider_copy)
+            logger.info(f"[DEBUG] Returning {len(providers)} installed providers")
+            return providers
+        except Exception as e:
+            logger.error(f"[DEBUG] Error in ProvidersFactory.get_installed_providers: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def get_consumer_providers() -> list[Provider]:
@@ -613,15 +620,19 @@ class ProvidersFactory:
         Returns:
             list: The linked providers.
         """
-        linked_providers = get_linked_providers(tenant_id)
-        available_providers = ProvidersFactory.get_all_providers()
+        logger.info(f"[DEBUG] ProvidersFactory.get_linked_providers called for tenant: {tenant_id}")
+        try:
+            linked_providers = get_linked_providers(tenant_id)
+            logger.info(f"[DEBUG] Got {len(linked_providers)} linked providers from DB")
+            available_providers = ProvidersFactory.get_all_providers()
+            logger.info(f"[DEBUG] Got {len(available_providers)} available providers")
 
-        _linked_providers = []
-        for p in linked_providers:
-            provider_type, provider_id, last_alert_received = p[0], p[1], p[2]
-            provider: Provider = next(
-                filter(
-                    lambda provider: provider.type == provider_type,
+            _linked_providers = []
+            for p in linked_providers:
+                provider_type, provider_id, last_alert_received = p[0], p[1], p[2]
+                provider: Provider = next(
+                    filter(
+                        lambda provider: provider.type == provider_type,
                     available_providers,
                 ),
                 None,
@@ -644,7 +655,11 @@ class ProvidersFactory:
                 ).isoformat()
             _linked_providers.append(provider)
 
-        return _linked_providers
+            logger.info(f"[DEBUG] Returning {len(_linked_providers)} linked providers")
+            return _linked_providers
+        except Exception as e:
+            logger.error(f"[DEBUG] Error in ProvidersFactory.get_linked_providers: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def get_default_deduplication_rules() -> list[DeduplicationRuleDto]:

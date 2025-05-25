@@ -16,12 +16,14 @@ from keep.api.models.time_stamp import TimeStampFilter
 
 
 def get_all_provisioned_providers(tenant_id: str) -> List[Provider]:
+    logger.info(f"[DEBUG] get_all_provisioned_providers called for tenant: {tenant_id}")
     with Session(engine) as session:
         providers = session.exec(
             select(Provider)
             .where(Provider.tenant_id == tenant_id)
             .where(Provider.provisioned == True)
         ).all()
+    logger.info(f"[DEBUG] Found {len(providers)} provisioned providers for tenant {tenant_id}")
     return list(providers)
 
 
@@ -35,19 +37,27 @@ def get_consumer_providers() -> List[Provider]:
 
 
 def get_installed_providers(tenant_id: str) -> List[Provider]:
-    with Session(engine) as session:
-        providers = session.exec(
-            select(Provider).where(Provider.tenant_id == tenant_id)
-        ).all()
-    return providers
+    logger.info(f"[DEBUG] get_installed_providers called for tenant: {tenant_id}")
+    try:
+        with Session(engine) as session:
+            providers = session.exec(
+                select(Provider).where(Provider.tenant_id == tenant_id)
+            ).all()
+        logger.info(f"[DEBUG] Found {len(providers)} installed providers for tenant {tenant_id}")
+        return providers
+    except Exception as e:
+        logger.error(f"[DEBUG] Error in get_installed_providers: {e}", exc_info=True)
+        raise
 
 
 def get_linked_providers(tenant_id: str) -> List[Tuple[str, str, dt]]:
     # Alert table may be too huge, so cutting the query without mercy
+    logger.info(f"[DEBUG] get_linked_providers called for tenant: {tenant_id}")
     LIMIT_BY_ALERTS = 10000
-    with Session(engine) as session:
-        alerts_subquery = (
-            select(Alert)
+    try:
+        with Session(engine) as session:
+            alerts_subquery = (
+                select(Alert)
             .filter(Alert.tenant_id == tenant_id, Alert.provider_type != "group")
             .limit(LIMIT_BY_ALERTS)
             .subquery()
@@ -62,7 +72,11 @@ def get_linked_providers(tenant_id: str) -> List[Tuple[str, str, dt]]:
             .filter(~exists().where(Provider.id == alerts_subquery.c.provider_id))
             .group_by(alerts_subquery.c.provider_type, alerts_subquery.c.provider_id)
         ).all()
-    return providers
+        logger.info(f"[DEBUG] Found {len(providers)} linked providers for tenant {tenant_id}")
+        return providers
+    except Exception as e:
+        logger.error(f"[DEBUG] Error in get_linked_providers: {e}", exc_info=True)
+        raise
 
 
 def get_provider_by_name(tenant_id: str, provider_name: str) -> Provider:

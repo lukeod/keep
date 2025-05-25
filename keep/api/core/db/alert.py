@@ -749,8 +749,7 @@ def get_alerts_with_filters(
         query = query.filter(Alert.tenant_id == tenant_id)
         # Filter by time_delta
         query = query.filter(
-            Alert.timestamp
-            >= dt.now(tz=timezone.utc) - timedelta(days=time_delta)
+            Alert.timestamp >= dt.now(tz=timezone.utc) - timedelta(days=time_delta)
         )
         # Ensure Alert and AlertEnrichment are joined for subsequent filters
         query = query.outerjoin(Alert.alert_enrichment)
@@ -1165,7 +1164,9 @@ def get_last_workflow_workflow_to_alert_executions(
             WorkflowToAlertExecution.workflow_execution_id == WorkflowExecution.id,
         )
         .filter(WorkflowExecution.tenant_id == tenant_id)
-        .filter(WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=7))
+        .filter(
+            WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=7)
+        )
         .group_by(WorkflowToAlertExecution.alert_fingerprint)
     ).subquery("max_started_subquery")
     # Query to find WorkflowToAlertExecution entries that match the max started timestamp
@@ -1468,8 +1469,7 @@ def query_alerts(
         # if timeframe is provided, filter the alerts by the timeframe
         if timeframe:
             query = query.filter(
-                Alert.timestamp
-                >= dt.now(tz=timezone.utc) - timedelta(days=timeframe)
+                Alert.timestamp >= dt.now(tz=timezone.utc) - timedelta(days=timeframe)
             )
         filter_conditions = []
         if upper_timestamp is not None:

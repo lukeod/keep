@@ -375,7 +375,9 @@ def get_last_workflow_execution_by_workflow_id(
             select(WorkflowExecution)
             .where(WorkflowExecution.workflow_id == workflow_id)
             .where(WorkflowExecution.tenant_id == tenant_id)
-            .where(WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=1))
+            .where(
+                WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=1)
+            )
             .order_by(col(WorkflowExecution.started).desc())
         )
         if status:
@@ -454,7 +456,8 @@ def get_timeouted_workflow_exections():
                 select(WorkflowExecution)
                 .filter(WorkflowExecution.status == "in_progress")
                 .filter(
-                    WorkflowExecution.started <= dt.now(tz=timezone.utc) - WORKFLOWS_TIMEOUT
+                    WorkflowExecution.started
+                    <= dt.now(tz=timezone.utc) - WORKFLOWS_TIMEOUT
                 )
             )
             timeouted_workflows = result.all()
@@ -768,8 +771,7 @@ def get_workflows_with_last_execution(tenant_id: str) -> List[dict]:
             )
             .where(WorkflowExecution.tenant_id == tenant_id)
             .where(
-                WorkflowExecution.started
-                >= dt.now(tz=timezone.utc) - timedelta(days=7)
+                WorkflowExecution.started >= dt.now(tz=timezone.utc) - timedelta(days=7)
             )
             .group_by(WorkflowExecution.workflow_id)
             .limit(1000)

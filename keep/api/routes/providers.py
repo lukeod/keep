@@ -71,9 +71,30 @@ def get_providers(
 ):
     tenant_id = authenticated_entity.tenant_id
     logger.info("Getting installed providers", extra={"tenant_id": tenant_id})
-    providers = ProvidersService.get_all_providers()
-    installed_providers = ProvidersService.get_installed_providers(tenant_id)
-    linked_providers = ProvidersService.get_linked_providers(tenant_id)
+    
+    # Debug: Log the start of provider fetching
+    logger.info(f"[DEBUG] Starting provider fetch for tenant: {tenant_id}")
+    
+    try:
+        providers = ProvidersService.get_all_providers()
+        logger.info(f"[DEBUG] Got {len(providers)} total providers from ProvidersService")
+    except Exception as e:
+        logger.error(f"[DEBUG] Error getting all providers: {e}", exc_info=True)
+        raise
+    
+    try:
+        installed_providers = ProvidersService.get_installed_providers(tenant_id)
+        logger.info(f"[DEBUG] Got {len(installed_providers)} installed providers for tenant {tenant_id}")
+    except Exception as e:
+        logger.error(f"[DEBUG] Error getting installed providers: {e}", exc_info=True)
+        raise
+    
+    try:
+        linked_providers = ProvidersService.get_linked_providers(tenant_id)
+        logger.info(f"[DEBUG] Got {len(linked_providers)} linked providers for tenant {tenant_id}")
+    except Exception as e:
+        logger.error(f"[DEBUG] Error getting linked providers: {e}", exc_info=True)
+        raise
     if PROVIDER_DISTRIBUTION_ENABLED:
         # generate distribution only if not in read only mode
         if READ_ONLY:
@@ -100,12 +121,26 @@ def get_providers(
 
     is_localhost = _is_localhost()
 
-    return {
+    response = {
         "providers": providers,
         "installed_providers": installed_providers,
         "linked_providers": linked_providers,
         "is_localhost": is_localhost,
     }
+    
+    # Debug: Log some provider types to verify data
+    if providers:
+        provider_types = [p.type for p in providers[:5]]  # First 5 providers
+        logger.info(f"[DEBUG] Sample provider types: {provider_types}")
+    
+    # Check for specific providers the test is looking for
+    provider_types_set = {p.type for p in providers}
+    has_gcp = 'gcpmonitoring' in provider_types_set
+    has_kibana = 'kibana' in provider_types_set
+    logger.info(f"[DEBUG] Has GCP Monitoring: {has_gcp}, Has Kibana: {has_kibana}")
+    
+    logger.info(f"[DEBUG] Returning providers response with {len(providers)} providers, {len(installed_providers)} installed, {len(linked_providers)} linked")
+    return response
 
 
 @router.get("/{provider_id}/logs", description="Get provider logs")

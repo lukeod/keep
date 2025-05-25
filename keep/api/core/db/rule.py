@@ -14,7 +14,11 @@ from keep.api.core.db._common import (
     NULL_FOR_DELETED_AT,
     existed_or_new_session,
 )
-from keep.api.models.db.alert import AlertDeduplicationEvent, AlertDeduplicationRule, LastAlertToIncident
+from keep.api.models.db.alert import (
+    AlertDeduplicationEvent,
+    AlertDeduplicationRule,
+    LastAlertToIncident,
+)
 from keep.api.models.db.incident import Incident
 from keep.api.models.db.mapping import MappingRule
 from keep.api.models.db.rule import *
@@ -235,7 +239,9 @@ def get_all_deduplication_stats(tenant_id):
         alerts_last_24_hours_results = session.exec(alerts_last_24_hours_query).all()
         # Create a dictionary with deduplication stats for each rule
         stats = {}
-        current_hour = dt.now(tz=timezone.utc).replace(minute=0, second=0, microsecond=0)
+        current_hour = dt.now(tz=timezone.utc).replace(
+            minute=0, second=0, microsecond=0
+        )
         for result in all_time_results:
             provider_id = result.provider_id
             provider_type = result.provider_type
