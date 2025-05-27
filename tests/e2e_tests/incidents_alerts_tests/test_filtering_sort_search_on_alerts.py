@@ -576,23 +576,112 @@ def test_filter_search_timeframe_combination_with_queryparams(
     failure_artifacts,
 ):
     try:
+        # Helper function for timestamp conversion
+        def to_readable_utc_iso(ts_value):
+            if ts_value is None:
+                return "None"
+            try:
+                # Attempt to handle both Unix MS and ISO strings
+                if isinstance(ts_value, (int, float)): # Assuming Unix MS
+                    return datetime.fromtimestamp(ts_value / 1000, timezone.utc).isoformat()
+                elif isinstance(ts_value, str): # Assuming ISO string
+                    # Handle potential 'Z' and ensure UTC
+                    dt_obj = datetime.fromisoformat(ts_value.replace("Z", "+00:00"))
+                    if dt_obj.tzinfo is None:
+                        dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+                    else:
+                        dt_obj = dt_obj.astimezone(timezone.utc)
+                    return dt_obj.isoformat()
+                return str(ts_value) # Fallback
+            except Exception as e:
+                return f"Error parsing ts '{ts_value}': {e}"
+
         facet_name = "severity"
         alert_property_name = "severity"
         value = "info"
 
-        def filter_lambda(alert):
-            return (
-                alert[alert_property_name] == value
-                and "high" in alert["name"].lower()
-                and datetime.fromisoformat(alert["lastReceived"]).replace(
-                    tzinfo=timezone.utc
-                )
-                >= (datetime.now(timezone.utc) - timedelta(hours=4))
-            )
+        print("\n--- E2E Test Local Python Filtering Log ---")
+        now_utc = datetime.now(timezone.utc)
+        four_hours_ago_utc = now_utc - timedelta(hours=4)
+        print(f"Current Time (UTC) for filtering: {now_utc.isoformat()}")
+        print(f"Time Boundary (4 hours ago UTC): {four_hours_ago_utc.isoformat()}")
+
+        # Original filter_lambda for reference by the UI/Backend perspective log
+        original_python_filter_lambda = lambda alert_orig: (
+            alert_orig.get(alert_property_name) == value
+            and "high" in alert_orig.get("name", "").lower()
+            # Ensure lastReceived is parsed correctly, assuming it might be string or int/float (ms)
+            and (datetime.fromisoformat(alert_orig["lastReceived"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc) if isinstance(alert_orig.get("lastReceived"), str)
+                 else datetime.fromtimestamp(alert_orig.get("lastReceived")/1000, timezone.utc))
+            >= four_hours_ago_utc
+        )
+
+        def filter_lambda_with_logging(alert_log):
+            is_info = alert_log.get(alert_property_name) == value
+            name_matches = "high" in alert_log.get("name", "").lower()
+            
+            raw_last_received = alert_log.get("lastReceived")
+            parsed_last_received_dt = None
+            passes_e2e_time_filter = False
+            
+            if raw_last_received is not None:
+                try:
+                    if isinstance(raw_last_received, (int, float)): # Unix MS
+                        parsed_last_received_dt = datetime.fromtimestamp(raw_last_received / 1000, timezone.utc)
+                    elif isinstance(raw_last_received, str): # ISO String
+                        dt_obj_lr = datetime.fromisoformat(raw_last_received.replace("Z", "+00:00"))
+                        if dt_obj_lr.tzinfo is None:
+                           parsed_last_received_dt = dt_obj_lr.replace(tzinfo=timezone.utc)
+                        else:
+                           parsed_last_received_dt = dt_obj_lr.astimezone(timezone.utc)
+                    
+                    if parsed_last_received_dt:
+                        passes_e2e_time_filter = parsed_last_received_dt >= four_hours_ago_utc
+                except Exception as e:
+                    print(f"    Error parsing DTO_lastReceived '{raw_last_received}' for E2E filter: {e}")
+
+            # Log for all relevant alerts (matching severity and name), not just those passing the time filter initially
+            if is_info and name_matches:
+                print(f"  E2E_Filter_Check Alert: {alert_log.get('name')}, Fingerprint: {alert_log.get('fingerprint')}, Provider: {alert_log.get('providerType')}")
+                print(f"    Severity: {alert_log.get('severity')}")
+                print(f"    DTO_lastReceived (raw): {raw_last_received}")
+                print(f"    DTO_lastReceived (parsed UTC): {to_readable_utc_iso(raw_last_received)}")
+                print(f"    DTO_timestamp (raw): {alert_log.get('timestamp')}") # This is LastAlert.timestamp
+                print(f"    DTO_timestamp (parsed UTC): {to_readable_utc_iso(alert_log.get('timestamp'))}")
+                
+                raw_dto_timestamp = alert_log.get('timestamp')
+                # Calculate delta if both are parseable
+                try:
+                    # Convert DTO_timestamp to datetime if not already
+                    parsed_dto_timestamp_dt = None
+                    if isinstance(raw_dto_timestamp, (int, float)):
+                        parsed_dto_timestamp_dt = datetime.fromtimestamp(raw_dto_timestamp / 1000, timezone.utc)
+                    elif isinstance(raw_dto_timestamp, str):
+                        dt_obj_ts = datetime.fromisoformat(raw_dto_timestamp.replace("Z", "+00:00"))
+                        if dt_obj_ts.tzinfo is None:
+                            parsed_dto_timestamp_dt = dt_obj_ts.replace(tzinfo=timezone.utc)
+                        else:
+                            parsed_dto_timestamp_dt = dt_obj_ts.astimezone(timezone.utc)
+
+                    if parsed_last_received_dt and parsed_dto_timestamp_dt:
+                        delta_seconds = (parsed_dto_timestamp_dt - parsed_last_received_dt).total_seconds()
+                        print(f"    Delta (DTO_timestamp - DTO_lastReceived): {delta_seconds:.3f} s")
+                except Exception as e_delta:
+                    print(f"    Could not calculate delta: {e_delta}")
+
+                print(f"    Passes E2E Time Filter (based on DTO_lastReceived): {passes_e2e_time_filter}")
+            
+            return is_info and name_matches and passes_e2e_time_filter
 
         current_alerts = query_alerts(cell_query="", limit=1000)["results"]
         init_test(browser, current_alerts, max_retries=3)
-        filtered_alerts = [alert for alert in current_alerts if filter_lambda(alert)]
+        
+        # Apply the logging filter
+        filtered_alerts = []
+        for alert_item_for_e2e_filter in current_alerts:
+            if filter_lambda_with_logging(alert_item_for_e2e_filter):
+                filtered_alerts.append(alert_item_for_e2e_filter)
+        print(f"--- E2E Test Locally Filtered Count (based on DTO_lastReceived): {len(filtered_alerts)} ---")
 
         # Give the page a moment to process redirects
         browser.wait_for_timeout(500)
@@ -618,8 +707,87 @@ def test_filter_search_timeframe_combination_with_queryparams(
         browser.locator(
             "[data-testid='timeframe-picker-content'] button", has_text="Past 4 hours"
         ).click()
+        browser.wait_for_timeout(500) # Give time for UI to update after timeframe selection
+
+        print("\n--- UI/Backend Perspective Log ---")
+        # now_utc and four_hours_ago_utc are already defined from the E2E local filter section
+        print(f"Current Time (UTC) for UI perspective: {now_utc.isoformat()}")
+        print(f"Time Boundary (4 hours ago UTC) for UI perspective: {four_hours_ago_utc.isoformat()}")
+        
+        ui_relevant_cel_query = "severity == 'info' && name.contains('high')"
+        print(f"Querying API with CEL: '{ui_relevant_cel_query}' to get potential UI alerts for timeframe check.")
+        
+        # Fetch all alerts matching severity and name; backend will apply timeframe based on LastAlert.timestamp.
+        # For logging, we'll mimic this timeframe check on alert["timestamp"].
+        # The UI itself would have applied the timeframe filter, so the facet count reflects that.
+        # This query_alerts is to get the *list* of alerts the UI *would* be considering for its count.
+        potential_ui_alerts_from_api = query_alerts(cel_query=ui_relevant_cel_query, limit=50)["results"]
+        print(f"Found {len(potential_ui_alerts_from_api)} alerts matching CEL '{ui_relevant_cel_query}' from API (before client-side check of DTO_timestamp).")
+        
+        ui_side_filtered_count = 0
+        alerts_counted_by_ui_perspective = []
+        for alert_data_ui in potential_ui_alerts_from_api:
+            raw_backend_ts = alert_data_ui.get("timestamp") # This is DTO's 'timestamp', i.e., LastAlert.timestamp
+            parsed_backend_ts_dt = None
+            passes_backend_time_filter = False
+
+            if raw_backend_ts is not None:
+                try:
+                    if isinstance(raw_backend_ts, (int, float)): # Unix MS
+                        parsed_backend_ts_dt = datetime.fromtimestamp(raw_backend_ts / 1000, timezone.utc)
+                    elif isinstance(raw_backend_ts, str): # ISO String
+                        dt_obj_bts = datetime.fromisoformat(raw_backend_ts.replace("Z", "+00:00"))
+                        if dt_obj_bts.tzinfo is None:
+                            parsed_backend_ts_dt = dt_obj_bts.replace(tzinfo=timezone.utc)
+                        else:
+                            parsed_backend_ts_dt = dt_obj_bts.astimezone(timezone.utc)
+                    
+                    if parsed_backend_ts_dt:
+                        passes_backend_time_filter = parsed_backend_ts_dt >= four_hours_ago_utc
+                except Exception as e:
+                    print(f"    Error parsing DTO_timestamp '{raw_backend_ts}' for UI perspective: {e}")
+
+            if passes_backend_time_filter: # Only log details if it passes the backend-style time filter
+                ui_side_filtered_count += 1
+                alerts_counted_by_ui_perspective.append(alert_data_ui)
+                print(f"  UI_Filter_Check Alert: {alert_data_ui.get('name')}, Fingerprint: {alert_data_ui.get('fingerprint')}, Provider: {alert_data_ui.get('providerType')}")
+                print(f"    Severity: {alert_data_ui.get('severity')}")
+                print(f"    DTO_lastReceived (raw): {alert_data_ui.get('lastReceived')}")
+                print(f"    DTO_lastReceived (parsed UTC): {to_readable_utc_iso(alert_data_ui.get('lastReceived'))}")
+                print(f"    DTO_timestamp (raw): {raw_backend_ts}")
+                print(f"    DTO_timestamp (parsed UTC): {to_readable_utc_iso(raw_backend_ts)}")
+                
+                raw_dto_last_received_ui = alert_data_ui.get('lastReceived')
+                # Calculate delta if both are parseable
+                try:
+                    parsed_last_received_dt_ui = None
+                    if isinstance(raw_dto_last_received_ui, (int, float)):
+                        parsed_last_received_dt_ui = datetime.fromtimestamp(raw_dto_last_received_ui / 1000, timezone.utc)
+                    elif isinstance(raw_dto_last_received_ui, str):
+                        dt_obj_lrui = datetime.fromisoformat(raw_dto_last_received_ui.replace("Z", "+00:00"))
+                        if dt_obj_lrui.tzinfo is None:
+                            parsed_last_received_dt_ui = dt_obj_lrui.replace(tzinfo=timezone.utc)
+                        else:
+                            parsed_last_received_dt_ui = dt_obj_lrui.astimezone(timezone.utc)
+
+                    if parsed_last_received_dt_ui and parsed_backend_ts_dt:
+                        delta_seconds_ui = (parsed_backend_ts_dt - parsed_last_received_dt_ui).total_seconds()
+                        print(f"    Delta (DTO_timestamp - DTO_lastReceived): {delta_seconds_ui:.3f} s")
+                except Exception as e_delta_ui:
+                    print(f"    Could not calculate delta for UI perspective: {e_delta_ui}")
+                
+                # Check this alert against the E2E test's original Python filter logic
+                passes_e2e_original_filter = original_python_filter_lambda(alert_data_ui)
+                print(f"    Passes E2E Original Python Filter (based on DTO_lastReceived): {passes_e2e_original_filter}")
+        
+        print(f"--- Count of alerts passing UI-like time filter (based on DTO_timestamp): {ui_side_filtered_count} ---")
+        # This count should ideally match the facet count displayed in the UI.
+        # The assert_facet below uses filtered_alerts (from E2E local filter), which is expected to be 6.
+        # The UI facet count is expected to be 7.
 
         # check that alerts are filtered by the selected facet/cel/timeframe
+        # NOTE: The original assert_facet uses 'filtered_alerts' which is based on the E2E test's local Python filter.
+        # This is expected to show 6. The UI would show 7.
         assert_facet(
             browser,
             facet_name,
